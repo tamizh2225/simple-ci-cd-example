@@ -2,36 +2,41 @@ pipeline {
   agent any
 
   environment {
-    DEPLOY_DIR = 'C:\\xampp\\htdocs\\myapp'   // change folder name as needed
+    // Change this if your XAMPP is installed elsewhere or you want a different folder
+    DEPLOY_DIR = 'C:\\xampp\\htdocs\\myapp'
   }
 
   stages {
     stage('Checkout') {
       steps {
-        // checkout the Jenkinsfile and repo
+        // If using "Pipeline script from SCM" this checkout is optional, but harmless
         checkout scm
-        echo "Checked out ${env.GIT_URL ?: 'repo'}"
+        echo "Workspace: ${env.WORKSPACE}"
       }
     }
 
     stage('Build (noop)') {
       steps {
-        // For a simple static site there may be no build step.
-        // You can add steps like npm install/build here if needed later.
         echo "No build step for static html. Workspace: ${env.WORKSPACE}"
       }
     }
 
     stage('Deploy to XAMPP') {
       steps {
-        // Create deploy dir if missing, then copy workspace -> deploy dir
-        // Exclude .git and Jenkinsfile
+        // Multiline bat block. It captures robocopy's exit code and exits 0 for non-fatal codes (<8).
         bat """
           if not exist "${DEPLOY_DIR}" mkdir "${DEPLOY_DIR}"
-          REM robocopy copies files and directories. /MIR mirrors; /XF excludes files; /XD excludes directories
+          REM Run robocopy and mirror workspace to deploy dir, excluding Jenkinsfile and .git
           robocopy "%WORKSPACE%" "${DEPLOY_DIR}" /MIR /XF Jenkinsfile /XF .gitignore /XD .git
-          REM robocopy returns special codes; for CI we ignore codes < 8 as successful
-          IF %ERRORLEVEL% GEQ 8 EXIT /B %ERRORLEVEL%
+          set RC=%ERRORLEVEL%
+          echo Robocopy exit code: %RC%
+          if %RC% GEQ 8 (
+            echo Robocopy failed with code %RC%
+            exit /B %RC%
+          ) else (
+            echo Robocopy completed with code %RC% (non-fatal). Exiting 0 for Jenkins.
+            exit /B 0
+          )
         """
       }
     }
@@ -39,7 +44,7 @@ pipeline {
 
   post {
     success {
-      echo "Deployment succeeded. Visit http://localhost/myapp/"
+      echo "Deployment succeeded. Visit http://localhost/myapp/ (or adjust URL for your folder)"
     }
     failure {
       echo "Pipeline failed. Check console output."
