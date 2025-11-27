@@ -1,3 +1,3 @@
 function greet() {
-  alert("i really want to work with cognizant 💌");
+  alert("Thanks for visiting my website!");
 }
